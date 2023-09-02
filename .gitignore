@@ -22,3 +22,6 @@ go.work
 
 dist
 **/testdata/tmp
+
+.idea
+coverage.out
