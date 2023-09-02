@@ -4,6 +4,8 @@ import (
     "errors"
     "fmt"
     "github.com/CloudyKit/jet/v6"
+    "github.com/alexedwards/scs/v2"
+    "github.com/justinas/nosurf"
     "html/template"
     "log"
     "net/http"
@@ -17,6 +19,7 @@ type Render struct {
     Port       string
     ServerName string
     JetViews   *jet.Set
+    Session    *scs.SessionManager
 }
 
 type TemplateData struct {
@@ -29,6 +32,21 @@ type TemplateData struct {
     Port            string
     ServerName      string
     Secure          bool
+    Error           string
+    Flash           string
+}
+
+func (c *Render) defaultData(td *TemplateData, r *http.Request) *TemplateData {
+    td.Secure = c.Secure
+    td.ServerName = c.ServerName
+    td.CSRFToken = nosurf.Token(r)
+    td.Port = c.Port
+    if c.Session.Exists(r.Context(), "userID") {
+        td.IsAuthenticated = true
+    }
+    td.Error = c.Session.PopString(r.Context(), "error")
+    td.Flash = c.Session.PopString(r.Context(), "flash")
+    return td
 }
 
 func (c *Render) Page(w http.ResponseWriter, r *http.Request, view string, variables, data any) error {
@@ -54,6 +72,8 @@ func (c *Render) GoPage(w http.ResponseWriter, r *http.Request, view string, dat
         td = data.(*TemplateData)
     }
 
+    td = c.defaultData(td, r)
+
     err = tmpl.Execute(w, td)
     if err != nil {
         return err
@@ -76,6 +96,8 @@ func (c *Render) JetPage(w http.ResponseWriter, r *http.Request, templateName st
     if data != nil {
         td = data.(*TemplateData)
     }
+
+    td = c.defaultData(td, r)
 
     t, err := c.JetViews.GetTemplate(fmt.Sprintf("%s.jet", templateName))
     if err != nil {
